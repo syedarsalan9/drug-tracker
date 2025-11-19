@@ -1,59 +1,430 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Drug Search and Tracker API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A Laravel-based REST API for searching drug information and managing user medication lists. Integrates with the National Library of Medicine's RxNorm APIs.
 
-## About Laravel
+## Features
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- User authentication (Register/Login/Logout)
+- Public drug search endpoint
+- Private user medication management
+- Rate limiting on public endpoints
+- Response caching for better performance
+- Comprehensive error handling
+- 90%+ test coverage
+- RESTful API design
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Tech Stack
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- Laravel 10.x
+- MySQL/PostgreSQL
+- Laravel Sanctum (Authentication)
+- Guzzle HTTP Client
+- PHPUnit (Testing)
 
-## Learning Laravel
+## Installation
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### Prerequisites
+- PHP 8.1+
+- Composer
+- MySQL/PostgreSQL
+- Git
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Setup Steps
 
-## Laravel Sponsors
+1. **Clone the repository**
+```bash
+git clone https://github.com/syedarsalan9/drug-tracker.git
+cd drug-tracker
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+2. **Install dependencies**
+```bash
+composer install
+```
 
-### Premium Partners
+3. **Environment configuration**
+```bash
+cp .env.example .env
+php artisan key:generate
+```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+4. **Configure database in `.env`**
+```
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=drug_mgmt_system
+DB_USERNAME=root
+DB_PASSWORD=
+```
 
-## Contributing
+5. **Run migrations**
+```bash
+php artisan migrate
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+6. **Start the server**
+```bash
+php artisan serve
+```
 
-## Code of Conduct
+The API will be available at `http://localhost:8000`
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## API Documentation
 
-## Security Vulnerabilities
+### Base URL
+```
+http://localhost:8000/api
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Authentication
+Most endpoints require Bearer token authentication. Include in headers:
+```
+Authorization: Bearer {your_token}
+```
+
+---
+
+### 1. User Registration
+
+**Endpoint:** `POST /api/register`
+
+**Request Body:**
+```json
+{
+    "name": "Syed Arsalan",
+    "email": "syedarslanahmed99@gmail.com",
+    "password": "password123",
+    "password_confirmation": "password123"
+}
+```
+
+**Response (201):**
+```json
+{
+    "success": true,
+    "message": "Registration successful",
+    "data": {
+        "user": {
+            "id": 1,
+            "name": "Syed Arsalan",
+            "email": "syedarslanahmed99@gmail.com"
+        },
+        "access_token": "1|abc123...",
+        "token_type": "Bearer"
+    }
+}
+```
+
+---
+
+### 2. User Login
+
+**Endpoint:** `POST /api/login`
+
+**Request Body:**
+```json
+{
+    "email": "syedarslanahmed99@gmail.com",
+    "password": "password123"
+}
+```
+
+**Response (200):**
+```json
+{
+    "success": true,
+    "message": "Login successful",
+    "data": {
+        "user": {
+            "id": 1,
+            "name": "John Doe",
+            "email": "syedarslanahmed99@gmail.com"
+        },
+        "access_token": "2|xyz789...",
+        "token_type": "Bearer"
+    }
+}
+```
+
+---
+
+### 3. Search Drugs (Public)
+
+**Endpoint:** `GET /api/drugs/search?drug_name={query}`
+
+**Rate Limit:** 30 requests per minute
+
+**Example Request:**
+```
+GET /api/drugs/search?drug_name=aspirin
+```
+
+**Response (200):**
+```json
+{
+    "success": true,
+    "message": "Drugs found successfully",
+    "data": [
+        {
+            "rxcui": "243670",
+            "name": "Aspirin 81 MG Oral Tablet",
+            "base_names": ["Aspirin"],
+            "dosage_forms": ["Oral Tablet"]
+        },
+        {
+            "rxcui": "198467",
+            "name": "Aspirin 325 MG Oral Tablet",
+            "base_names": ["Aspirin"],
+            "dosage_forms": ["Oral Tablet"]
+        }
+    ],
+    "count": 2
+}
+```
+
+---
+
+### 4. Add Medication (Protected)
+
+**Endpoint:** `POST /api/medications`
+
+**Headers:** `Authorization: Bearer {token}`
+
+**Request Body:**
+```json
+{
+    "rxcui": "243670"
+}
+```
+
+**Response (201):**
+```json
+{
+    "success": true,
+    "message": "Medication added successfully",
+    "data": {
+        "id": 1,
+        "user_id": 1,
+        "rxcui": "243670",
+        "drug_name": "Aspirin 81 MG Oral Tablet",
+        "base_names": ["Aspirin"],
+        "dosage_forms": ["Oral Tablet"],
+        "created_at": "2024-01-15T10:30:00.000000Z",
+        "updated_at": "2024-01-15T10:30:00.000000Z"
+    }
+}
+```
+
+---
+
+### 5. Get User Medications (Protected)
+
+**Endpoint:** `GET /api/medications`
+
+**Headers:** `Authorization: Bearer {token}`
+
+**Response (200):**
+```json
+{
+    "success": true,
+    "message": "Medications retrieved successfully",
+    "data": [
+        {
+            "id": 1,
+            "user_id": 1,
+            "rxcui": "243670",
+            "drug_name": "Aspirin 81 MG Oral Tablet",
+            "base_names": ["Aspirin"],
+            "dosage_forms": ["Oral Tablet"],
+            "created_at": "2024-01-15T10:30:00.000000Z",
+            "updated_at": "2024-01-15T10:30:00.000000Z"
+        }
+    ],
+    "count": 1
+}
+```
+
+---
+
+### 6. Delete Medication (Protected)
+
+**Endpoint:** `DELETE /api/medications/{rxcui}`
+
+**Headers:** `Authorization: Bearer {token}`
+
+**Example:**
+```
+DELETE /api/medications/243670
+```
+
+**Response (200):**
+```json
+{
+    "success": true,
+    "message": "Medication removed successfully"
+}
+```
+
+---
+
+### 7. Logout (Protected)
+
+**Endpoint:** `POST /api/logout`
+
+**Headers:** `Authorization: Bearer {token}`
+
+**Response (200):**
+```json
+{
+    "success": true,
+    "message": "Logged out successfully"
+}
+```
+
+---
+
+## Error Responses
+
+### Validation Error (422)
+```json
+{
+    "message": "The given data was invalid.",
+    "errors": {
+        "email": ["The email has already been taken."]
+    }
+}
+```
+
+### Unauthorized (401)
+```json
+{
+    "message": "Unauthenticated."
+}
+```
+
+### Not Found (404)
+```json
+{
+    "success": false,
+    "message": "Medication not found in your list"
+}
+```
+
+### Server Error (500)
+```json
+{
+    "success": false,
+    "message": "Registration failed",
+    "error": "Database connection error"
+}
+```
+
+---
+
+## Testing
+
+Run the test suite:
+```bash
+# Run all tests
+php artisan test
+
+# Run with coverage
+php artisan test --coverage
+
+# Run specific test file
+php artisan test tests/Feature/AuthTest.php
+```
+
+**Test Coverage:** 90%+
+
+---
+
+## Rate Limiting
+
+- **Public Search Endpoint:** 30 requests per minute per IP
+- Can be adjusted in `routes/api.php`
+
+---
+
+## Caching
+
+- Drug search results cached for 1 hour
+- Drug details cached for 1 hour
+- RXCUI validation cached for 1 hour
+- Cache automatically cleared on errors
+
+---
+
+## Deployment
+
+### Environment Variables (Production)
+```
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://your-domain.com
+
+DB_CONNECTION=mysql
+DB_HOST=your-db-host
+DB_DATABASE=your-db-name
+DB_USERNAME=your-db-user
+DB_PASSWORD=your-db-password
+
+CACHE_DRIVER=redis
+QUEUE_CONNECTION=redis
+```
+
+---
+
+## Project Structure
+```
+app/
+├── Http/
+│   ├── Controllers/      # API Controllers
+│   ├── Requests/         # Form Validation
+│   └── Middleware/       # Custom Middleware
+├── Models/               # Eloquent Models
+├── Services/             # Business Logic
+└── Repositories/         # Data Access Layer
+
+tests/
+└── Feature/              # Integration Tests
+
+routes/
+└── api.php               # API Routes
+```
+
+---
+
+## Security Features
+
+- Password hashing (bcrypt)
+- API token authentication (Sanctum)
+- CSRF protection
+- SQL injection prevention (Eloquent ORM)
+- Rate limiting
+- Input validation
+
+---
+
+## Performance Optimizations
+
+- Response caching (1 hour TTL)
+- Database indexing
+- Eager loading to prevent N+1 queries
+- Query optimization
+- Connection pooling
+
+---
+
+## Support & Contact
+
+For issues or questions:
+- Email: syedarslanahmed99@gmail.com
+- GitHub Issues: [Project Issues](https://github.com/syedarsalan9/drug-tracker/issues)
+
+---
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+MIT License

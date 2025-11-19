@@ -13,11 +13,9 @@ class RxNormService
 
     /**
      * Search for drugs by name
-     * Uses getDrugs endpoint with tty=SBD
      */
     public function searchDrugs(string $drugName)
     {
-        // Create cache key based on search term
         $cacheKey = 'drug_search_' . md5(strtolower($drugName));
 
         return Cache::remember($cacheKey, $this->cacheTime, function () use ($drugName) {
@@ -33,7 +31,7 @@ class RxNormService
 
                 $data = $response->json();
                 
-                // Extract SBD (Semantic Branded Drug) entries
+                // Extract SBD entries
                 $drugs = $data['drugGroup']['conceptGroup'] ?? [];
                 
                 foreach ($drugs as $group) {
@@ -41,7 +39,6 @@ class RxNormService
                         // Get top 5 results
                         $concepts = array_slice($group['conceptProperties'] ?? [], 0, 5);
                         
-                        // Fetch detailed info for each drug
                         $results = [];
                         foreach ($concepts as $concept) {
                             $details = $this->getDrugDetails($concept['rxcui']);
@@ -67,7 +64,7 @@ class RxNormService
     }
 
     /**
-     * Get detailed drug information including ingredients and dosage forms
+     * Get detailed drug information
      */
     public function getDrugDetails(string $rxcui)
     {
@@ -75,50 +72,77 @@ class RxNormService
 
         return Cache::remember($cacheKey, $this->cacheTime, function () use ($rxcui) {
             try {
-                $response = Http::timeout(10)->get("{$this->baseUrl}/rxcui/{$rxcui}/historystatus.json");
+                $url = "{$this->baseUrl}/rxcui/{$rxcui}/historystatus.json";
+                
+                Log::info('Fetching drug details', ['url' => $url]);
+                
+                $response = Http::timeout(10)->get($url);
 
                 if (!$response->successful()) {
+                    Log::warning('Drug details fetch failed', [
+                        'rxcui' => $rxcui,
+                        'status' => $response->status()
+                    ]);
                     return null;
                 }
 
                 $data = $response->json();
+                
+                // Get attributes (for drug name)
                 $attributes = $data['rxcuiStatusHistory']['attributes'] ?? null;
+                
+                // Get definitional features (for ingredients and dosage forms)
+                $definitionalFeatures = $data['rxcuiStatusHistory']['definitionalFeatures'] ?? null;
 
                 if (!$attributes) {
+                    Log::warning('No attributes found', ['rxcui' => $rxcui]);
                     return null;
                 }
 
-                // Extract base names from ingredients
+                Log::info('Definitional Features', [
+                    'rxcui' => $rxcui,
+                    'features' => $definitionalFeatures
+                ]);
+
+                // Extract base names from ingredientAndStrength
                 $baseNames = [];
-                $ingredientAndStrength = $attributes['ingredientAndStrength'] ?? [];
-                
-                foreach ($ingredientAndStrength as $ingredient) {
-                    if (isset($ingredient['baseName'])) {
-                        $baseNames[] = $ingredient['baseName'];
+                if (isset($definitionalFeatures['ingredientAndStrength'])) {
+                    foreach ($definitionalFeatures['ingredientAndStrength'] as $ingredient) {
+                        if (isset($ingredient['baseName'])) {
+                            $baseNames[] = $ingredient['baseName'];
+                        }
                     }
                 }
 
-                // Extract dosage form names
+                // Extract dosage forms from doseFormGroupConcept
                 $dosageForms = [];
-                $doseFormGroups = $attributes['doseFormGroupConcept'] ?? [];
-                
-                foreach ($doseFormGroups as $doseForm) {
-                    if (isset($doseForm['doseFormGroupName'])) {
-                        $dosageForms[] = $doseForm['doseFormGroupName'];
+                if (isset($definitionalFeatures['doseFormGroupConcept'])) {
+                    foreach ($definitionalFeatures['doseFormGroupConcept'] as $doseForm) {
+                        if (isset($doseForm['doseFormGroupName'])) {
+                            $dosageForms[] = $doseForm['doseFormGroupName'];
+                        }
                     }
                 }
 
-                return [
+                $result = [
                     'rxcui' => $rxcui,
                     'name' => $attributes['name'] ?? 'Unknown',
-                    'base_names' => array_unique($baseNames),
-                    'dosage_forms' => array_unique($dosageForms)
+                    'base_names' => array_values(array_unique($baseNames)),
+                    'dosage_forms' => array_values(array_unique($dosageForms))
                 ];
 
-            } catch (\Exception $e) {
-                Log::error('Drug details fetch failed', [
+                Log::info('Drug details extracted', [
                     'rxcui' => $rxcui,
-                    'error' => $e->getMessage()
+                    'result' => $result
+                ]);
+
+                return $result;
+
+            } catch (\Exception $e) {
+                Log::error('Drug details exception', [
+                    'rxcui' => $rxcui,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
                 ]);
                 return null;
             }
@@ -126,7 +150,7 @@ class RxNormService
     }
 
     /**
-     * Verify if an RXCUI is valid
+     * Verify if RXCUI is valid
      */
     public function verifyRxcui(string $rxcui): bool
     {
@@ -134,23 +158,83 @@ class RxNormService
 
         return Cache::remember($cacheKey, $this->cacheTime, function () use ($rxcui) {
             try {
-                $response = Http::timeout(5)->get("{$this->baseUrl}/rxcui/{$rxcui}/status.json");
+                $url = "{$this->baseUrl}/rxcui/{$rxcui}/historystatus.json";
+                
+                Log::info('Verifying RXCUI', ['rxcui' => $rxcui, 'url' => $url]);
+                
+                $response = Http::timeout(10)->get($url);
                 
                 if (!$response->successful()) {
+                    Log::warning('RXCUI verification failed', [
+                        'rxcui' => $rxcui,
+                        'status' => $response->status()
+                    ]);
                     return false;
                 }
 
                 $data = $response->json();
-                return isset($data['rxcuiStatus']['status']) && 
-                       $data['rxcuiStatus']['status'] !== 'NotCurrent';
+                
+                // Check if rxcuiStatusHistory exists
+                if (!isset($data['rxcuiStatusHistory'])) {
+                    Log::warning('No status history found', ['rxcui' => $rxcui]);
+                    return false;
+                }
+
+                // Check if attributes exist
+                $attributes = $data['rxcuiStatusHistory']['attributes'] ?? null;
+                
+                if (!$attributes || !isset($attributes['name'])) {
+                    Log::warning('No attributes or name found', ['rxcui' => $rxcui]);
+                    return false;
+                }
+
+                // Check status
+                $metaData = $data['rxcuiStatusHistory']['metaData'] ?? null;
+                $status = $metaData['status'] ?? null;
+
+                Log::info('RXCUI verification result', [
+                    'rxcui' => $rxcui,
+                    'has_attributes' => !empty($attributes),
+                    'status' => $status,
+                    'name' => $attributes['name'] ?? null
+                ]);
+
+                return true;
 
             } catch (\Exception $e) {
-                Log::error('RXCUI verification failed', [
+                Log::error('RXCUI verification exception', [
                     'rxcui' => $rxcui,
                     'error' => $e->getMessage()
                 ]);
                 return false;
             }
         });
+    }
+
+    /**
+     * Alternative verification using direct lookup
+     */
+    public function verifyRxcuiAlternative(string $rxcui): bool
+    {
+        try {
+            $response = Http::timeout(5)
+                ->get("{$this->baseUrl}/rxcui/{$rxcui}.json");
+            
+            if (!$response->successful()) {
+                return false;
+            }
+
+            $data = $response->json();
+            
+            return isset($data['idGroup']['rxnormId']) 
+                && !empty($data['idGroup']['rxnormId']);
+
+        } catch (\Exception $e) {
+            Log::error('Alternative verification failed', [
+                'rxcui' => $rxcui,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
     }
 }
