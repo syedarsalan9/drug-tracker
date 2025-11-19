@@ -1,49 +1,58 @@
-# ============================
-# Stage 1 — Composer Install
-# ============================
-FROM composer:2 AS composer_stage
+# ---------- Stage 1: Build PHP dependencies (vendor) ----------
+FROM composer:2 AS vendor
+
 WORKDIR /app
+
+# Copy only composer files first (better caching)
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --prefer-dist --no-interaction --no-ansi --no-scripts
 
+# Install PHP dependencies (no dev, no scripts)
+RUN composer install \
+    --no-dev \
+    --no-scripts \
+    --prefer-dist \
+    --no-interaction \
+    --no-progress
+
+# Now copy full project
 COPY . .
-RUN composer dump-autoload --optimize
 
+# Re-run to install anything that needs full source (if any)
+RUN composer install \
+    --no-dev \
+    --prefer-dist \
+    --no-interaction \
+    --no-progress
 
-# ============================
-# Stage 2 — Build PHP + Nginx
-# ============================
-FROM php:8.3-fpm
+# ---------- Stage 2: Runtime image ----------
+FROM php:8.3-cli
 
-# Install required extensions + system deps
+# Set working directory
+WORKDIR /var/www/html
+
+# System dependencies
 RUN apt-get update && apt-get install -y \
-    nginx \
     git \
     unzip \
-    zip \
-    supervisor \
+    libzip-dev \
     libpng-dev \
     libonig-dev \
     libxml2-dev \
-    default-mysql-client \
-    && docker-php-ext-install pdo pdo_mysql mbstring xml gd
+    && docker-php-ext-install pdo pdo_mysql zip \
+    && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /var/www/html
+# Copy application code and vendor from builder
+COPY --from=vendor /app ./
 
-# Copy Laravel app from composer build stage
-COPY --from=composer_stage /app ./
-
-# Copy Laravel nginx config
-COPY ./deploy/nginx.conf /etc/nginx/nginx.conf
-
-# Supervisor config to run PHP-FPM + nginx
-COPY ./deploy/supervisor.conf /etc/supervisor/conf.d/supervisor.conf
-
-# Permissions
-RUN chown -R www-data:www-data /var/www/html \
+# Give proper permissions to storage and cache
+RUN chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
-# Expose port (Railway auto-detects)
-EXPOSE 8080
+# Railway normally injects PORT env, but set default just in case
+ENV PORT=8000
 
-CMD ["/usr/bin/supervisord"]
+# Expose same port (Railway will map container $PORT to public URL)
+EXPOSE 8000
+
+# Start Laravel using built-in server
+CMD php artisan serve --host=0.0.0.0 --port=${PORT}
