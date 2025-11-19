@@ -1,33 +1,32 @@
-FROM php:8.2-fpm
+FROM php:8.2-cli
 
 WORKDIR /var/www
 
+# Install dependencies in one layer
 RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    zip \
-    unzip \
-    default-mysql-client \
+    libpng-dev libonig-dev libxml2-dev zip unzip default-mysql-client \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
-
+# Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-COPY . /var/www
+# Copy application
+COPY . .
 
-RUN composer install --optimize-autoloader --no-dev
+# Install PHP dependencies
+RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-RUN chown -R www-data:www-data /var/www && \
-    chmod -R 755 /var/www/storage && \
-    chmod -R 755 /var/www/bootstrap/cache
+# Set permissions
+RUN chmod -R 777 storage bootstrap/cache
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
+  CMD curl -f http://localhost:${PORT:-8000}/api/test || exit 1
 
 EXPOSE 8000
 
+# Start server
 CMD php artisan migrate --force && \
-    php artisan config:cache && \
-    php artisan route:cache && \
-    php artisan serve --host=0.0.0.0 --port=$PORT
+    php artisan config:clear && \
+    php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
