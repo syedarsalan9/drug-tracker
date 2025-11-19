@@ -24,6 +24,7 @@ RUN composer install \
     --no-interaction \
     --no-progress
 
+
 # ---------- Stage 2: Runtime image ----------
 FROM php:8.3-cli
 
@@ -44,14 +45,13 @@ RUN apt-get update && apt-get install -y \
 # Copy application code and vendor from builder
 COPY --from=vendor /app ./
 
-# Give proper permissions to storage and cache
-RUN chown -R www-data:www-data storage bootstrap/cache \
-    && chmod -R 775 storage/bootstrap/cache
+# Ensure storage + cache directories exist and set permissions
+RUN mkdir -p storage bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
-# IMPORTANT:
-#  - Railway khud $PORT env set karega (e.g. 12345)
-#  - Hum ussi PORT pe listen karenge
-#  - Local me run karte waqt default 8000 le lenge
+# Railway exposes its own PORT env.
+# Locally: defaults to 8000 if PORT not set.
 EXPOSE 8000
 
 CMD ["sh", "-c", "php artisan serve --host=0.0.0.0 --port=${PORT:-8000}"]
