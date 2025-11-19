@@ -46,13 +46,12 @@ COPY --from=vendor /app ./
 
 # Give proper permissions to storage and cache
 RUN chown -R www-data:www-data storage bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
+    && chmod -R 775 storage/bootstrap/cache
 
-# Railway normally injects PORT env, but set default just in case
-ENV PORT=8000
-
-# Expose same port (Railway will map container $PORT to public URL)
+# IMPORTANT:
+#  - Railway khud $PORT env set karega (e.g. 12345)
+#  - Hum ussi PORT pe listen karenge
+#  - Local me run karte waqt default 8000 le lenge
 EXPOSE 8000
 
-# Start Laravel using built-in server
-CMD php artisan serve --host=0.0.0.0 --port=${PORT}
+CMD ["sh", "-c", "php artisan serve --host=0.0.0.0 --port=${PORT:-8000}"]
