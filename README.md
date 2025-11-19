@@ -362,7 +362,7 @@ php artisan test tests/Feature/AuthTest.php
 ```
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://your-domain.com
+APP_URL=https://drug-tracker-production.up.railway.app
 
 DB_CONNECTION=mysql
 DB_HOST=your-db-host
