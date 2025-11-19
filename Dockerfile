@@ -1,21 +1,49 @@
-FROM php:8.2-cli
-
+# ============================
+# Stage 1 — Composer Install
+# ============================
+FROM composer:2 AS composer_stage
 WORKDIR /app
-
-RUN apt-get update && apt-get install -y \
-    zip unzip default-mysql-client curl \
-    && docker-php-ext-install pdo_mysql mbstring \
-    && apt-get clean
-
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --prefer-dist --no-interaction --no-ansi --no-scripts
 
 COPY . .
+RUN composer dump-autoload --optimize
 
-RUN composer install --no-dev --optimize-autoloader
 
-RUN chmod -R 777 storage bootstrap/cache
+# ============================
+# Stage 2 — Build PHP + Nginx
+# ============================
+FROM php:8.3-fpm
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
-  CMD curl -f http://localhost:8000/api/test || exit 1
+# Install required extensions + system deps
+RUN apt-get update && apt-get install -y \
+    nginx \
+    git \
+    unzip \
+    zip \
+    supervisor \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    default-mysql-client \
+    && docker-php-ext-install pdo pdo_mysql mbstring xml gd
 
-EXPOSE 8000
+WORKDIR /var/www/html
+
+# Copy Laravel app from composer build stage
+COPY --from=composer_stage /app ./
+
+# Copy Laravel nginx config
+COPY ./deploy/nginx.conf /etc/nginx/nginx.conf
+
+# Supervisor config to run PHP-FPM + nginx
+COPY ./deploy/supervisor.conf /etc/supervisor/conf.d/supervisor.conf
+
+# Permissions
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 775 storage bootstrap/cache
+
+# Expose port (Railway auto-detects)
+EXPOSE 8080
+
+CMD ["/usr/bin/supervisord"]
