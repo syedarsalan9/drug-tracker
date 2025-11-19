@@ -17,8 +17,8 @@ class AuthTest extends TestCase
     public function test_user_can_register_successfully()
     {
         $response = $this->postJson('/api/register', [
-            'name' => 'John Doe',
-            'email' => 'john@example.com',
+            'name' => 'Syed Arsalan',
+            'email' => 'syedarslanahmed99@gmail.com',
             'password' => 'password123',
             'password_confirmation' => 'password123'
         ]);
@@ -39,8 +39,8 @@ class AuthTest extends TestCase
                  ]);
 
         $this->assertDatabaseHas('users', [
-            'email' => 'john@example.com',
-            'name' => 'John Doe'
+            'email' => 'syedarslanahmed99@gmail.com',
+            'name' => 'Syed Arsalan'
         ]);
     }
 
@@ -84,12 +84,12 @@ class AuthTest extends TestCase
     public function test_user_can_login_with_correct_credentials()
     {
         $user = User::factory()->create([
-            'email' => 'john@example.com',
+            'email' => 'syedarslanahmed99@gmail.com',
             'password' => Hash::make('password123')
         ]);
 
         $response = $this->postJson('/api/login', [
-            'email' => 'john@example.com',
+            'email' => 'syedarslanahmed99@gmail.com',
             'password' => 'password123'
         ]);
 
@@ -115,12 +115,12 @@ class AuthTest extends TestCase
     public function test_user_cannot_login_with_wrong_password()
     {
         $user = User::factory()->create([
-            'email' => 'john@example.com',
+            'email' => 'syedarslanahmed99@gmail.com',
             'password' => Hash::make('password123')
         ]);
 
         $response = $this->postJson('/api/login', [
-            'email' => 'john@example.com',
+            'email' => 'syedarslanahmed99@gmail.com',
             'password' => 'wrongpassword'
         ]);
 
